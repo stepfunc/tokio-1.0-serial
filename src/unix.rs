@@ -2,9 +2,9 @@ use futures::ready;
 use std::io::Read;
 use std::io::Write;
 use std::task::Context;
+use tokio::io::unix::AsyncFd;
 use tokio::io::ReadBuf;
 use tokio::macros::support::{Pin, Poll};
-use tokio::io::unix::AsyncFd;
 
 #[cfg(unix)]
 pub struct AsyncSerial {
@@ -13,12 +13,8 @@ pub struct AsyncSerial {
 
 #[cfg(unix)]
 pub fn open(path: &str, settings: super::Settings) -> std::io::Result<AsyncSerial> {
-    let tty = serialport::new(path, settings.baud_rate)
-        .baud_rate(settings.baud_rate)
-        .data_bits(settings.data_bits)
-        .parity(settings.parity)
-        .stop_bits(settings.stop_bits)
-        .flow_control(settings.flow_control)
+    let tty = settings
+        .build(serialport::new(path, settings.baud_rate))
         .open_native()?;
 
     Ok(AsyncSerial {
