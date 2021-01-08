@@ -10,7 +10,7 @@ pub struct Settings {
 
 impl Settings {
     #[cfg(unix)]
-    pub(crate) fn build(&self, builder: SerialPortBuilder) -> SerialPortBuilder {
+    pub(crate) fn build(&self, builder: serialport::SerialPortBuilder) -> serialport::SerialPortBuilder {
         builder
             .data_bits(self.data_bits)
             .flow_control(self.flow_control)
