@@ -1,5 +1,6 @@
 pub use serialport::{DataBits, Error, ErrorKind, FlowControl, Parity, StopBits};
 
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Settings {
     pub baud_rate: u32,
     pub data_bits: DataBits,
