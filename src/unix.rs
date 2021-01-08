@@ -4,6 +4,7 @@ use std::io::Write;
 use std::task::Context;
 use tokio::io::ReadBuf;
 use tokio::macros::support::{Pin, Poll};
+use tokio::io::unix::AsyncFd;
 
 #[cfg(unix)]
 pub struct AsyncSerial {

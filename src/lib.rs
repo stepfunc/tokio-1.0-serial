@@ -1,8 +1,5 @@
 pub use serialport::{DataBits, Error, ErrorKind, FlowControl, Parity, StopBits};
 
-#[cfg(unix)]
-use tokio::io::unix::AsyncFd;
-
 pub struct Settings {
     pub baud_rate: u32,
     pub data_bits: DataBits,
