@@ -1,5 +1,11 @@
 pub use serialport::{DataBits, Error, ErrorKind, FlowControl, Parity, StopBits};
 
+#[cfg(unix)]
+use tokio::io::unix::AsyncFd;
+use std::task::Context;
+use tokio::io::ReadBuf;
+use tokio::macros::support::{Pin, Poll};
+
 pub struct Settings {
     pub baud_rate: u32,
     pub data_bits: DataBits,
@@ -9,15 +15,15 @@ pub struct Settings {
 }
 
 #[cfg(unix)]
-pub struct SerialPort {
-    tty: serialport::TTYPort,
+pub struct AsyncSerial {
+    inner: AsyncFd<serialport::TTYPort>,
 }
 
 #[cfg(windows)]
-pub struct SerialPort;
+pub struct AsyncSerial;
 
 #[cfg(unix)]
-pub fn open(path: &str, settings: Settings) -> Result<SerialPort, serialport::Error> {
+pub fn open(path: &str, settings: Settings) -> std::io::Result<SerialPort> {
     let tty = serialport::new(path, settings.baud_rate)
         .baud_rate(settings.baud_rate)
         .data_bits(settings.data_bits)
@@ -26,10 +32,65 @@ pub fn open(path: &str, settings: Settings) -> Result<SerialPort, serialport::Er
         .flow_control(settings.flow_control)
         .open_native()?;
 
-    Ok(SerialPort { tty })
+    Ok(AsyncSerial { inner: AsyncFd::new(tty)? }) // TODO
 }
 
+/*
+impl From<serialport::Error> for std::io::Error {
+    fn from(err: Error) -> Self {
+        match err.kind {
+            serialport::ErrorKind::InvalidInput => std::io::ErrorKind::InvalidInput.into(),
+            serialport::ErrorKind::Io(kind) => kind.into(),
+            serialport::ErrorKind::NoDevice => std::io::ErrorKind::NotFound.into(),
+            serialport::ErrorKind::Unknown => std::io::ErrorKind::Other,
+        }
+    }
+}
+*/ 
+
 #[cfg(windows)]
-pub fn open(path: &Path, settings: Settings) -> Result<SerialPort, serialport::Error> {
+pub fn open(_path: &str, _settings: Settings) -> Result<AsyncSerial, serialport::Error> {
     panic!("not supported on windows yet")
+}
+
+#[cfg(unix)]
+impl tokio::io::AsyncRead for AsyncSerial {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<tokio::io::Result<()>> {
+        let mut guard = ready!(self.inner.poll_read_ready(cx))?;
+        match guard.try_io(|_| {
+            let read = self.io.get_ref().read(buf.initialize_unfilled())?;
+            return Ok(buf.advance(read));
+        }) {
+            Ok(result) => return Poll::Ready(result),
+            Err(_would_block) => return Poll::Pending,
+        }
+    }
+}
+
+#[cfg(unix)]
+impl tokio::io::AsyncWrite for AsyncSerial {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        let mut guard = ready!(self.io.poll_write_ready(cx))?;
+        return match guard.try_io(|_| self.io.get_ref().write(buf)) {
+            Ok(x) => Poll::Ready(x),
+            Err(_) => Poll::Pending,
+        };
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        let mut guard = ready!(self.io.poll_write_ready(cx))?;
+        let result = match guard.try_io(|_| self.io.get_ref().flush()) {
+            Ok(x) => Poll::Ready(x),
+            Err(_) => Poll::Pending,
+        };
+        return result;
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        return Poll::Ready(Ok(()));
+    }
 }
