@@ -2,9 +2,13 @@ pub use serialport::{DataBits, Error, ErrorKind, FlowControl, Parity, StopBits};
 
 #[cfg(unix)]
 use tokio::io::unix::AsyncFd;
+
 use std::task::Context;
 use tokio::io::ReadBuf;
 use tokio::macros::support::{Pin, Poll};
+use std::io::Write;
+use std::io::Read;
+use futures::ready;
 
 pub struct Settings {
     pub baud_rate: u32,
@@ -23,7 +27,7 @@ pub struct AsyncSerial {
 pub struct AsyncSerial;
 
 #[cfg(unix)]
-pub fn open(path: &str, settings: Settings) -> std::io::Result<SerialPort> {
+pub fn open(path: &str, settings: Settings) -> std::io::Result<AsyncSerial> {
     let tty = serialport::new(path, settings.baud_rate)
         .baud_rate(settings.baud_rate)
         .data_bits(settings.data_bits)
@@ -58,7 +62,7 @@ impl tokio::io::AsyncRead for AsyncSerial {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<tokio::io::Result<()>> {
         let mut guard = ready!(self.inner.poll_read_ready(cx))?;
         match guard.try_io(|_| {
-            let read = self.io.get_ref().read(buf.initialize_unfilled())?;
+            let read = self.inner.get_ref().read(buf.initialize_unfilled())?;
             return Ok(buf.advance(read));
         }) {
             Ok(result) => return Poll::Ready(result),
@@ -73,24 +77,24 @@ impl tokio::io::AsyncWrite for AsyncSerial {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        let mut guard = ready!(self.io.poll_write_ready(cx))?;
-        return match guard.try_io(|_| self.io.get_ref().write(buf)) {
+    ) -> Poll<tokio::io::Result<usize>> {
+        let mut guard = ready!(self.inner.poll_write_ready(cx))?;
+        return match guard.try_io(|_| self.inner.get_ref().write(buf)) {
             Ok(x) => Poll::Ready(x),
             Err(_) => Poll::Pending,
         };
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let mut guard = ready!(self.io.poll_write_ready(cx))?;
-        let result = match guard.try_io(|_| self.io.get_ref().flush()) {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<tokio::io::Result<()>> {
+        let mut guard = ready!(self.inner.poll_write_ready(cx))?;
+        let result = match guard.try_io(|_| self.inner.get_ref().flush()) {
             Ok(x) => Poll::Ready(x),
             Err(_) => Poll::Pending,
         };
         return result;
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<tokio::io::Result<()>> {
         return Poll::Ready(Ok(()));
     }
 }
