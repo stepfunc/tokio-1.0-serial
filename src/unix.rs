@@ -6,12 +6,10 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::ReadBuf;
 use tokio::macros::support::{Pin, Poll};
 
-#[cfg(unix)]
 pub struct AsyncSerial {
     inner: AsyncFd<serialport::TTYPort>,
 }
 
-#[cfg(unix)]
 pub fn open(path: &str, settings: super::Settings) -> std::io::Result<AsyncSerial> {
     let tty = settings
         .build(serialport::new(path, settings.baud_rate))
@@ -22,7 +20,6 @@ pub fn open(path: &str, settings: super::Settings) -> std::io::Result<AsyncSeria
     })
 }
 
-#[cfg(unix)]
 impl tokio::io::AsyncRead for AsyncSerial {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -41,7 +38,6 @@ impl tokio::io::AsyncRead for AsyncSerial {
     }
 }
 
-#[cfg(unix)]
 impl tokio::io::AsyncWrite for AsyncSerial {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -64,6 +60,7 @@ impl tokio::io::AsyncWrite for AsyncSerial {
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<tokio::io::Result<()>> {
+        // the underlying TTYPort is close-on-drop
         Poll::Ready(Ok(()))
     }
 }

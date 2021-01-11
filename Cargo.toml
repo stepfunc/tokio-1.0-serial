@@ -5,6 +5,6 @@ authors = ["jadamcrain <jadamcrain@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-serialport = "4.0"
+serialport = { version = "4.0", default-features = false }
 tokio = { version = "1.0", features=["net","io-util", "rt"] }
 futures = "0.3"
