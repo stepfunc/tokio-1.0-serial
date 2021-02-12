@@ -2,6 +2,7 @@ use futures::task::Context;
 use tokio::io::{Error, ReadBuf};
 use tokio::macros::support::{Pin, Poll};
 
+#[derive(Debug)]
 pub struct AsyncSerial;
 
 pub fn open(_path: &str, _settings: super::Settings) -> std::io::Result<AsyncSerial> {
