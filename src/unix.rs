@@ -6,6 +6,7 @@ use tokio::io::unix::AsyncFd;
 use tokio::io::ReadBuf;
 use tokio::macros::support::{Pin, Poll};
 
+#[derive(Debug)]
 pub struct AsyncSerial {
     inner: AsyncFd<serialport::TTYPort>,
 }
